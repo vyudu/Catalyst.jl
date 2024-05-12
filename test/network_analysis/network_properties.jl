@@ -37,6 +37,9 @@ let
     @test isweaklyreversible(MAPK, subnetworks(MAPK)) == false
     cls = conservationlaws(MAPK)
     @test Catalyst.get_networkproperties(MAPK).rank == 15
+
+    rates = rand(numparams(MAPK))
+    @test Catalyst.complexbalanced(MAPK, rates) == false
     # i=0;
     # for lcs in linkageclasses(MAPK)
     #     i=i+1
@@ -74,6 +77,9 @@ let
     @test isweaklyreversible(rn2, subnetworks(rn2)) == false
     cls = conservationlaws(rn2)
     @test Catalyst.get_networkproperties(rn2).rank == 6
+
+    rates = rand(numparams(rn2))
+    @test Catalyst.complexbalanced(rn2, rates) == false
     # i=0;
     # for lcs in linkageclasses(rn2)
     #     i=i+1
@@ -114,6 +120,9 @@ let
     @test isweaklyreversible(rn3, subnetworks(rn3)) == false
     cls = conservationlaws(rn3)
     @test Catalyst.get_networkproperties(rn3).rank == 10
+    
+    rates = rand(numparams(rn3))
+    @test Catalyst.complexbalanced(rn3, rates) == false
     # i=0;
     # for lcs in linkageclasses(rn3)
     #     i=i+1
@@ -128,3 +137,14 @@ let
     #     println("-----------")
     # end
 end
+
+let
+    rn4 = @reaction_network begin
+        (k1, k2), C1 <--> C2
+        (k3, k4), C2 <--> C3
+        (k5, k6), C3 <--> C1
+    end
+    rates = rand(numparams(rn4))
+    @test Catalyst.complexbalanced(rn4, rates) == true
+end
+    
