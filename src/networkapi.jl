@@ -1652,3 +1652,150 @@ function validate(rs::ReactionSystem, info::String = "")
 
     validated
 end
+
+function iscomplexbalanced(rs::ReactionSystem, conc::Vector)
+    sm = speciesmap(rs)
+    cm = reactioncomplexmap(rs)
+    complexes, incidencemat = reactioncomplexes(rs)
+    complexbalanced = true
+
+    for c in complexes
+        if (sum([massactionrate(rs, rxn..., conc) for rxn in cm[c]]) != 0)
+            return false
+        end
+    end
+    complexbalanced
+end
+
+"""
+    complexbalanced(rs::ReactionSystem, rates::Vector)
+
+Constructively compute whether a network will have complex-balanced equilibrium
+solutions, following the method in this paper. 
+
+Notes:
+- Does not check subsystems, constraint equations, or non-species variables.
+"""
+
+using MetaGraphs, Combinatorics, LinearAlgebra
+
+function complexbalanced(rs::ReactionSystem, rates::Vector) 
+    if length(rates) != numparams(rs) 
+        error("The number of reaction rates must be equal to the number of parameters")
+    end
+    rxm = Dict(zip(reactionparams(rs), rates))
+    sm = speciesmap(rs)
+    cm = reactioncomplexmap(rs)
+    complexes, D = reactioncomplexes(rs)
+    rxns = reactions(rs)
+    nc = length(complexes); nr = numreactions(rs); nm = numspecies(rs)
+
+    # Construct kinetic matrix, K
+    K = zeros(nr, nc) 
+    for c in 1:nc
+        complex = complexes[c]
+        for (r, dir) in cm[complex]
+            rxn = rxns[r]
+            if dir == -1
+                K[r, c] = rxm[rxn.rate]
+            end
+        end
+    end
+
+    L = -D*K
+    S = netstoichmat(rs)
+
+    # Compute ρ using the matrix-tree theorem
+    ρ = zeros(nc)
+    lcs = linkageclasses(rs)
+    rwg = rateweightedgraph(rs, rates)
+
+    for lc in lcs
+        sg, vmap = Graphs.induced_subgraph(rwg, lc)
+        ρ_j = matrixtree(sg)
+        ρ[lc] = ρ_j
+    end
+    
+    # Determine if 1) ρ is positive and 2) D^T Ln ρ lies in the image of S^T
+    if all(x -> x > 0, ρ)
+        img = D'*log.(ρ)
+        if rank(S') == rank(hcat(S', img))
+            return true
+        else
+            return false
+        end
+    else
+        return false
+    end
+end
+
+function rateweightedgraph(rs::ReactionSystem, rates::Vector) 
+    if length(rates) != numparams(rs) 
+        error("The number of reaction rates must be equal to the number of parameters")
+    end
+    rm = Dict(zip(reactionparams(rs), rates))
+
+    complexes, D = reactioncomplexes(rs)
+    rxns = reactions(rs)
+
+    g = incidencematgraph(rs)
+    rwg = MetaDiGraph(g)
+
+    for v in vertices(rwg)
+        set_prop!(rwg, v, :complex, complexes[v])
+    end
+
+    for (i, e) in collect(enumerate(edges(rwg)))
+        rxn = rxns[i]
+        set_prop!(rwg, Graphs.src(e), Graphs.dst(e), :reaction, rxn)
+        set_prop!(rwg, Graphs.src(e), Graphs.dst(e), :rate, rm[rxn.rate])
+    end
+
+    rwg
+end
+
+function matrixtree(g::MetaDiGraph)
+    # generate all spanning trees
+    # TODO: implement Winter's algorithm for generating spanning trees 
+    n = nv(g)
+    ug = SimpleGraph(SimpleDiGraph(g))
+    trees = collect(Combinatorics.combinations(collect(edges(ug)), n-1))
+    trees = SimpleGraph.(trees)
+    trees = filter!(t->isempty(Graphs.cycle_basis(t)), trees)
+    
+    π = zeros(n) 
+
+    function treeweight(t::SimpleDiGraph) 
+        prod = 1
+        for e in edges(t)
+            rate = Graphs.has_edge(g, Graphs.src(e), Graphs.dst(e)) ? get_prop(g, e, :rate) : 0
+            prod *= rate
+        end
+        prod 
+    end
+
+    # constructed rooted trees for every edge, compute sum
+    for v in 1:n
+        rootedTrees = [reverse(Graphs.bfs_tree(t, v, dir=:in)) for t in trees]
+        π[v] = sum([treeweight(t) for t in rootedTrees])
+    end
+    
+    # sum the contributions
+    return π 
+end
+
+function massactionrate(rs::ReactionSystem, rxn_idx::Int, dir::Int, conc::Vector) 
+    if dir != -1 && dir != 1
+        error("Direction must be either +1 in the case of production or -1 in the case of consumption")
+    end
+
+    rxn = reactions(rs)[rxn_idx]
+    sm = speciesmap(rs)
+    rate = rxn.rate
+    
+    species = rxn.substrates
+    stoich = rxn.substoich
+    species_idx = [sm[s] for s in species]
+
+    dir * rate * prod(conc[species_idx].^stoich)
+end
