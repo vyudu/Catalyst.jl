@@ -1640,3 +1640,44 @@ function treeweight(t::SimpleDiGraph, g::SimpleDiGraph, distmx::Matrix)
     end
     prod 
 end
+
+"""
+    ispersistent(rs::ReactionSystem)
+
+    Checks if a reaction system is persistent, meaning that none of its species with positive concentration will go extinct (asymptotically approach 0). 
+"""
+
+function ispersistent(rs::ReactionSystem) 
+    conslaws = conservationlaws(rs)
+    conservative = !isempty(conservationlaws(rs))
+    consistent = !isempty()
+
+    siphons = minimalsiphons(rs)
+    conservative && consistent && all(!iscritical(s, conslaws), siphons)
+end
+
+"""
+    minimalsiphons(rs::ReactionSystem)
+
+    Constructs the set of minimal siphons of a reaction network, where a siphon is a set of species that can be "switched off," i.e. if the species each have concentration 0, the concentration of all the species will remain 0 for all time. A minimal siphon is one that does not contain a siphon as a subset.
+"""
+
+function minimalsiphons(rs::ReactionSystem) 
+    
+end
+
+function minimalcriticalsiphons(rs::ReactionSystem) 
+    
+end
+
+"""
+    iscritical(s, conslaws)
+
+    Checks if a siphon is critical, meaning that it does not contain the support of some conservation law. A reaction network with a critical siphon cannot be persistent.
+"""
+function iscritical(s, conslaws) 
+    supports = [findall(!=(0), conslaws[i, :]) for i in 1:length(claws)]
+
+    # If the support of any conservation law is contained in the siphon, then it is not critical
+    all(sup->!issubset(sup, s), supports)
+end
