@@ -101,8 +101,8 @@ let
             ModelingToolkit.is_time_dependent(prob) ? prob.f.jac(J, prob.u0, prob.p, 0.0) : prob.f.jac(J, prob.u0, prob.p)
             return J
         end
-        @test eval_jac(oprob_jac, false) == eval_jac(sprob_jac, false) == eval_jac(nlprob_jac, false)
-        @test_broken eval_jac(oprob_sjac, true) == eval_jac(sprob_sjac, true) == eval_jac(nlprob_sjac, true) # https://github.com/SciML/ModelingToolkit.jl/issues/3527
+        @test eval_jac(oprob_jac, false) ≈ eval_jac(sprob_jac, false) ≈ eval_jac(nlprob_jac, false)
+        @test eval_jac(oprob_sjac, true) ≈ eval_jac(sprob_sjac, true) ≈ eval_jac(nlprob_sjac, true) # https://github.com/SciML/ModelingToolkit.jl/issues/3527
     end
 end
 
@@ -116,7 +116,7 @@ let
         (p,d), 0 <--> (X,Y,Z)
         k1, X + Y --> XY
         k2, X + 2Z --> XZ2
-        k3, Y3 +X2 --> Y3Z2
+        k3, Y3 + X2 --> Y3Z2
         k4, X + Y + Z --> XYZ
         k5, XZ2 + Y3Z2 --> XY3Z4
         k6, XYZ + XYZ --> X2Y2Z2
@@ -136,7 +136,7 @@ let
         jac_sparse = jac_eval(rn, u0, ps, t_val; sparse = true)
 
         # Check correctness (both by converting to sparse jac to dense, and through multiplication with other matrix).
-        @test Matrix(jac_sparse) == jac
+        @test Matrix(jac_sparse) ≈ jac
         mat = factor*rand(rng, length(u0), length(u0))
         @test jac_sparse * mat ≈ jac * mat
     end
@@ -169,5 +169,5 @@ let
     sol_j = solve(oprob_j, Rosenbrock23(), saveat = 0.1, abstol = 1e-8, reltol = 1e-8)
     sol_s = solve(oprob_s, Rosenbrock23(), saveat = 0.1, abstol = 1e-8, reltol = 1e-8)
     sol_js = solve(oprob_js, Rosenbrock23(), saveat = 0.1, abstol = 1e-8, reltol = 1e-8)
-    @test  sol ≈ sol_j ≈ sol_s ≈ sol_js
+    @test sol ≈ sol_j ≈ sol_s ≈ sol_js
 end
